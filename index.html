@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barış Öğretmen Yönetim Paneli v5.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: #f1f5f9;
+            background-image: radial-gradient(at 0% 0%, hsla(253,16%,7%,0.05) 0, transparent 50%), 
+                              radial-gradient(at 50% 100%, hsla(225,39%,30%,0.05) 0, transparent 50%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Sidebar Transition */
+        #sidebar { transition: transform 0.3s ease-in-out; }
+        .sidebar-open { transform: translateX(0) !important; }
+        
+        /* Glass Panel */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+
+        /* Filter Buttons */
+        .filter-btn.active { transform: scale(1.05); color: white !important; border-color: transparent; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .filter-btn.active.btn-rahat { background: #10b981; }
+        .filter-btn.active.btn-hedef { background: #3b82f6; }
+        .filter-btn.active.btn-zor { background: #f97316; }
+        .filter-btn.active.btn-yerel { background: #8b5cf6; }
+        .filter-btn.active.btn-all { background: #475569; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #report-modal, #report-modal * { visibility: visible; }
+            #report-modal { position: fixed; inset: 0; background: white; z-index: 9999; padding: 0; }
+            .no-print { display: none !important; }
+        }
+        
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="text-slate-800 antialiased selection:bg-indigo-100 selection:text-indigo-700">
+
+    <!-- SIDEBAR MENU -->
+    <div id="sidebar-overlay" onclick="toggleMenu()" class="fixed inset-0 bg-slate-900/50 z-40 hidden backdrop-blur-sm transition-opacity"></div>
+    <aside id="sidebar" class="fixed top-0 left-0 h-full w-72 bg-slate-900 text-white z-50 transform -translate-x-full shadow-2xl flex flex-col">
+        <div class="p-6 border-b border-slate-800 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-xl shadow-lg shadow-indigo-500/30">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <div>
+                    <h2 class="font-bold text-lg leading-tight">BARIŞ HOCA</h2>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-widest">Yönetim Paneli</p>
+                </div>
+            </div>
+            <button onclick="toggleMenu()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-2 overflow-y-auto custom-scroll">
+            <button onclick="showView('calc')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-600/10 text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all group active-nav">
+                <i class="fas fa-calculator w-6"></i> <span class="font-medium">Analiz & Hesapla</span>
+            </button>
+            <button onclick="showView('tracking')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all group">
+                <i class="fas fa-users w-6"></i> <span class="font-medium">Öğrenci Listesi</span>
+            </button>
+            <button onclick="showView('info')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all group">
+                <i class="fas fa-book-open w-6"></i> <span class="font-medium">Bilgi Kartları</span>
+            </button>
+            
+            <div class="pt-4 mt-4 border-t border-slate-800">
+                <p class="px-4 text-[10px] font-bold text-slate-500 uppercase mb-2">Veri Yönetimi</p>
+                <button onclick="backupData()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-emerald-400 hover:bg-emerald-500/10 transition-all">
+                    <i class="fas fa-download w-6"></i> <span class="font-medium">Verileri Yedekle (İndir)</span>
+                </button>
+                <button onclick="document.getElementById('import-file').click()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sky-400 hover:bg-sky-500/10 transition-all">
+                    <i class="fas fa-upload w-6"></i> <span class="font-medium">Veri Yükle</span>
+                </button>
+                <input type="file" id="import-file" class="hidden" onchange="importData(this)">
+            </div>
+        </nav>
+
+        <div class="p-4 border-t border-slate-800 text-center">
+            <p class="text-[10px] text-slate-500">v5.0 • Barış Öğretmen LGS Sistemi</p>
+        </div>
+    </aside>
+
+    <!-- TOP BAR -->
+    <header class="sticky top-0 z-30 glass-panel border-b border-slate-200/60">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleMenu()" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <div class="hidden md:block">
+                    <h1 class="text-sm font-bold text-slate-800">Yönetim Paneli</h1>
+                    <p class="text-[10px] text-slate-500">LGS & OBP Analiz Modülü</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
+                <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                <span class="text-xs font-bold text-slate-600">LGS 2026:</span>
+                <span id="countdown" class="text-xs font-mono font-black text-slate-800">000 Gün</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <main class="container mx-auto p-4 md:p-8 pb-32 max-w-7xl min-h-screen">
+
+        <!-- VIEW: CALCULATOR (DEFAULT) -->
+        <div id="view-calc" class="view-section fade-in grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Left Column: Inputs (8 cols) -->
+            <div class="lg:col-span-8 space-y-6">
+                
+                <!-- Student Info -->
+                <div class="glass-panel rounded-2xl p-6 border-l-4 border-indigo-600">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Öğrenci Adı Soyadı</label>
+                            <div class="relative">
+                                <i class="fas fa-user absolute left-3 top-3 text-slate-400"></i>
+                                <input type="text" id="student-name" class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700" placeholder="Örn: Ali Veli">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Deneme Adı / Tarih</label>
+                            <div class="relative">
+                                <i class="fas fa-tag absolute left-3 top-3 text-slate-400"></i>
+                                <input type="text" id="exam-name" class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700" placeholder="Örn: 1. Dönem Sonu Denemesi">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LGS Calculator -->
+                <div class="glass-panel rounded-2xl overflow-hidden flex flex-col">
+                    <div class="p-4 border-b border-slate-100 bg-white/60 flex justify-between items-center">
+                        <h2 class="font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-calculator text-indigo-500"></i> LGS Net Sihirbazı</h2>
+                        <div class="flex bg-slate-100 p-1 rounded-lg">
+                            <button onclick="setMode('detail')" id="btn-mode-detail" class="px-3 py-1 text-[10px] font-bold bg-white shadow-sm rounded-md text-indigo-700 transition">Detaylı</button>
+                            <button onclick="setMode('quick')" id="btn-mode-quick" class="px-3 py-1 text-[10px] font-bold text-slate-500 hover:text-slate-700 transition">Hızlı Net</button>
+                        </div>
+                    </div>
+                    <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div id="inputs-verbal" class="space-y-3"></div>
+                        <div id="inputs-numerical" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- OBP Calculator (RESTORED) -->
+                <div class="glass-panel rounded-2xl p-6 relative overflow-hidden">
+                    <div class="absolute left-0 top-0 w-1.5 h-full bg-purple-500"></div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-school text-purple-500"></i> OBP Hesapla (Opsiyonel)</h2>
+                        <div class="bg-purple-50 px-3 py-1 rounded-lg border border-purple-100">
+                            <span class="text-[10px] font-bold text-purple-400 uppercase">OBP:</span>
+                            <span class="font-black text-purple-700 text-lg" id="live-obp">00.00</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 block text-center">6. Sınıf</label>
+                            <input type="number" id="grade-6" oninput="calcOBP()" class="w-full text-center p-2 rounded-xl border border-slate-200 font-bold focus:border-purple-500 outline-none" placeholder="-">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 block text-center">7. Sınıf</label>
+                            <input type="number" id="grade-7" oninput="calcOBP()" class="w-full text-center p-2 rounded-xl border border-slate-200 font-bold focus:border-purple-500 outline-none" placeholder="-">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 block text-center">8. Sınıf</label>
+                            <input type="number" id="grade-8" oninput="calcOBP()" class="w-full text-center p-2 rounded-xl border border-slate-200 font-bold focus:border-purple-500 outline-none" placeholder="-">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Bar -->
+                <div class="glass-panel p-5 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div class="flex items-center gap-6">
+                        <div>
+                            <div class="text-[10px] font-bold text-slate-400 uppercase">LGS Puanı</div>
+                            <div class="text-3xl font-black text-slate-800 tracking-tighter" id="live-score">194.760</div>
+                        </div>
+                        <div class="w-px h-8 bg-slate-200"></div>
+                        <div>
+                            <div class="text-[10px] font-bold text-slate-400 uppercase">Toplam Net</div>
+                            <div class="text-xl font-bold text-indigo-600" id="live-net">0.00</div>
+                        </div>
+                    </div>
+                    <button onclick="saveAndAnalyze()" class="w-full md:w-auto px-8 py-3.5 bg-slate-900 hover:bg-indigo-800 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition-all hover:-translate-y-1 flex items-center justify-center gap-2">
+                        <i class="fas fa-save text-yellow-400"></i> KAYDET VE ANALİZ ET
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Topics (4 cols) -->
+            <div class="lg:col-span-4">
+                <div class="glass-panel rounded-2xl p-5 h-full flex flex-col">
+                    <div class="mb-4 pb-4 border-b border-slate-100">
+                        <h3 class="font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-tasks text-orange-500"></i> Eksik Konular</h3>
+                        <p class="text-xs text-slate-500">Denemede yapılamayan konuları seç.</p>
+                    </div>
+                    <div id="topics-list" class="flex-1 overflow-y-auto custom-scroll pr-2 space-y-4 max-h-[600px]">
+                        <!-- JS -->
+                    </div>
+                    <button onclick="resetAll()" class="mt-4 w-full py-2 text-xs font-bold text-slate-400 border border-dashed border-slate-300 rounded-lg hover:text-rose-500 hover:border-rose-300 transition">
+                        Formu Temizle
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: STUDENT LIST -->
+        <div id="view-tracking" class="view-section hidden fade-in space-y-6">
+            <div class="glass-panel rounded-2xl p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-slate-800"><i class="fas fa-users text-indigo-500 mr-2"></i>Öğrenci Listesi</h2>
+                    <div class="relative w-64">
+                        <i class="fas fa-search absolute left-3 top-3 text-slate-400"></i>
+                        <input type="text" id="search-student" onkeyup="filterStudents()" placeholder="Öğrenci Ara..." class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+                <div id="student-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                <div id="no-data-msg" class="hidden text-center py-12 text-slate-400">Kayıtlı öğrenci bulunamadı.</div>
+            </div>
+            
+            <!-- Detail Chart Area -->
+            <div id="student-detail-area" class="hidden glass-panel rounded-2xl p-8 relative">
+                <button onclick="closeStudentDetail()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center"><i class="fas fa-times"></i></button>
+                <h3 id="detail-student-name" class="text-xl font-bold text-slate-800 mb-6">Gelişim Raporu</h3>
+                <div class="h-80 w-full"><canvas id="progressChart"></canvas></div>
+                <div class="mt-8 overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-slate-50 text-slate-500 font-bold"><tr><th class="p-3 rounded-l">Tarih</th><th class="p-3">Puan</th><th class="p-3">Net</th><th class="p-3 rounded-r">Not</th></tr></thead>
+                        <tbody id="history-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: INFO CARDS -->
+        <div id="view-info" class="view-section hidden fade-in space-y-8">
+            <div class="max-w-5xl mx-auto">
+                <h2 class="text-3xl font-black text-slate-800 text-center mb-8">BİLGİ KARTLARI</h2>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:-translate-y-2 transition duration-300">
+                        <div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center text-2xl mb-4"><i class="fas fa-weight-hanging"></i></div>
+                        <h3 class="font-bold text-lg text-slate-800 mb-2">Katsayılar</h3>
+                        <p class="text-sm text-slate-500">Türkçe, Matematik, Fen (x4); İnkılap, Din, İngilizce (x1) katsayılıdır. Ana dersler belirleyicidir.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:-translate-y-2 transition duration-300">
+                        <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center text-2xl mb-4"><i class="fas fa-exclamation-triangle"></i></div>
+                        <h3 class="font-bold text-lg text-slate-800 mb-2">3 Yanlış 1 Doğru</h3>
+                        <p class="text-sm text-slate-500">Yanlış cevaplar doğruları siler. Emin olmadığın soruları boş bırakmak en iyi stratejidir.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:-translate-y-2 transition duration-300">
+                        <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center text-2xl mb-4"><i class="fas fa-school"></i></div>
+                        <h3 class="font-bold text-lg text-slate-800 mb-2">OBP Sistemi</h3>
+                        <p class="text-sm text-slate-500">Ortaöğretim Başarı Puanı (6-7-8 Ortalaması), sınavsız yerel yerleştirmede kullanılır. Sınav kötü geçse bile OBP ile iyi okullar kazanılabilir.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- REPORT MODAL -->
+    <div id="report-modal" class="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-[100] hidden flex flex-col transition-opacity duration-300 opacity-0 overflow-hidden">
+        <div class="bg-white p-4 shadow-md shrink-0 flex justify-between items-center no-print">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold shadow"><i class="fas fa-clipboard-check"></i></div>
+                <div><h2 class="font-bold text-lg leading-tight">Analiz Raporu</h2><p class="text-[10px] text-slate-500 uppercase">Simülasyon Sonucu</p></div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="window.print()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold"><i class="fas fa-print mr-2"></i>Yazdır</button>
+                <button onclick="closeModal()" class="w-9 h-9 bg-slate-100 hover:bg-rose-100 hover:text-rose-500 rounded-full flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto custom-scroll p-4 md:p-8 bg-slate-50">
+            <div class="max-w-6xl mx-auto space-y-6">
+                <!-- Scores -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 print-break">
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex items-center gap-6">
+                        <div class="relative w-28 h-28 shrink-0">
+                            <canvas id="modalChart"></canvas>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center"><span class="text-xl font-black text-slate-800" id="res-score">000</span><span class="text-[9px] uppercase font-bold text-slate-400">LGS</span></div>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="font-bold text-slate-700 mb-2">Net Tablosu</h3>
+                            <div class="grid grid-cols-3 gap-2 text-xs text-center">
+                                <div class="bg-green-50 p-1.5 rounded border border-green-100"><div class="font-bold text-green-600" id="res-d">0</div><div>Doğru</div></div>
+                                <div class="bg-rose-50 p-1.5 rounded border border-rose-100"><div class="font-bold text-rose-600" id="res-y">0</div><div>Yanlış</div></div>
+                                <div class="bg-indigo-50 p-1.5 rounded border border-indigo-100"><div class="font-bold text-indigo-600" id="res-n">0</div><div>Net</div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Teacher Note & Comparison -->
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+                        <div>
+                            <h3 class="font-bold text-slate-700 text-sm uppercase mb-2"><i class="fas fa-comment-dots text-indigo-500 mr-2"></i>Barış Öğretmen:</h3>
+                            <p class="text-sm text-slate-600 italic" id="teacher-note">...</p>
+                        </div>
+                        <div id="comparison-box" class="mt-4 pt-4 border-t border-slate-100 text-xs"></div>
+                    </div>
+                </div>
+
+                <!-- Schools & Filter -->
+                <div class="print-break">
+                    <div class="flex flex-col md:flex-row justify-between items-end mb-4 gap-4 no-print">
+                        <div><h3 class="text-xl font-bold text-slate-800"><i class="fas fa-university text-indigo-600 mr-2"></i>Tercih Robotu</h3><p class="text-xs text-slate-500">LGS ve OBP puanına göre uygun okullar.</p></div>
+                        <div class="flex flex-wrap gap-2 bg-white p-2 rounded-xl shadow-sm border border-slate-200">
+                            <button onclick="filterSchools('all')" class="filter-btn btn-all active px-3 py-1.5 rounded-lg text-[10px] font-bold text-slate-500 transition" data-filter="all">TÜMÜ</button>
+                            <button onclick="filterSchools('RAHAT')" class="filter-btn btn-rahat px-3 py-1.5 rounded-lg text-[10px] font-bold text-green-600 transition" data-filter="RAHAT">RAHAT</button>
+                            <button onclick="filterSchools('HEDEF')" class="filter-btn btn-hedef px-3 py-1.5 rounded-lg text-[10px] font-bold text-blue-600 transition" data-filter="HEDEF">HEDEF</button>
+                            <button onclick="filterSchools('ZOR')" class="filter-btn btn-zor px-3 py-1.5 rounded-lg text-[10px] font-bold text-orange-600 transition" data-filter="ZOR">ZOR</button>
+                            <button onclick="filterSchools('YEREL')" class="filter-btn btn-yerel px-3 py-1.5 rounded-lg text-[10px] font-bold text-purple-600 border border-purple-200 transition" data-filter="YEREL"><i class="fas fa-map-marker-alt mr-1"></i>YEREL (OBP)</button>
+                        </div>
+                    </div>
+                    <div id="schools-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+                </div>
+                
+                <!-- Prescription -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print-break">
+                    <div class="bg-slate-50 px-6 py-3 border-b border-slate-100 font-bold text-sm text-slate-700 uppercase"><i class="fas fa-file-medical text-rose-500 mr-2"></i>Konu Reçetesi</div>
+                    <div id="modal-prescription" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONSTANTS ---
+        const DB_KEY = 'baris_lgs_pro_v5';
+        const targetDate = new Date("2026-06-07T09:30:00").getTime();
+        let currentMode = 'detail';
+        let lastLgsScore = 0;
+        let lastObpScore = 0;
+        let modalChartInst = null, progressChartInst = null;
+
+        const lessons = [
+            { id: 'tur', name: 'Türkçe', q: 20, coeff: 4, type: 'verbal', icon: 'fa-book-open', color: 'rose' },
+            { id: 'ink', name: 'İnkılap', q: 10, coeff: 1, type: 'verbal', icon: 'fa-history', color: 'amber' },
+            { id: 'din', name: 'Din K.', q: 10, coeff: 1, type: 'verbal', icon: 'fa-mosque', color: 'emerald' },
+            { id: 'ing', name: 'İngilizce', q: 10, coeff: 1, type: 'verbal', icon: 'fa-language', color: 'cyan' },
+            { id: 'mat', name: 'Matematik', q: 20, coeff: 4, type: 'numerical', icon: 'fa-calculator', color: 'blue' },
+            { id: 'fen', name: 'Fen Bil.', q: 20, coeff: 4, type: 'numerical', icon: 'fa-flask', color: 'violet' }
+        ];
+
+        // HYBRID SCHOOL DATA (LGS + OBP)
+        const schools = [
+            // LGS
+            { name: "Yaşar Acar Fen Lisesi", district: "Beylikdüzü", score: 488, uni: 94, type: "Fen Lisesi", category: "LGS" },
+            { name: "Samiha Ayverdi Anadolu", district: "Zeytinburnu", score: 465, uni: 88, type: "Anadolu Lisesi", category: "LGS" },
+            { name: "Hüseyin Yıldız Anadolu", district: "Beylikdüzü", score: 458, uni: 82, type: "Anadolu Lisesi", category: "LGS" },
+            { name: "Adnan Menderes Anadolu", district: "Zeytinburnu", score: 448, uni: 78, type: "Anadolu Lisesi", category: "LGS" },
+            { name: "Vali Muammer Güler Sosyal", district: "Beylikdüzü", score: 432, uni: 75, type: "Sosyal Bilimler", category: "LGS" },
+            { name: "Cahit Zarifoğlu Anadolu", district: "Beylikdüzü", score: 425, uni: 68, type: "Anadolu Lisesi", category: "LGS" },
+            { name: "Zeytinburnu Borsa İst.", district: "Zeytinburnu", score: 415, uni: 62, type: "Anadolu Lisesi", category: "LGS" },
+            // OBP (LOCAL)
+            { name: "Zeytinburnu Anadolu Lisesi", district: "Zeytinburnu", score: 92, uni: 45, type: "Yerel Yerleşme", category: "YEREL" },
+            { name: "Beylikdüzü Atatürk Anadolu", district: "Beylikdüzü", score: 88, uni: 40, type: "Yerel Yerleşme", category: "YEREL" },
+            { name: "Haluk Ündeğer Anadolu", district: "Zeytinburnu", score: 85, uni: 38, type: "Yerel Yerleşme", category: "YEREL" },
+            { name: "Gürlek Nakipoğlu Anadolu", district: "Beylikdüzü", score: 82, uni: 35, type: "Yerel Yerleşme", category: "YEREL" },
+            { name: "75. Yıl Cumhuriyet MTAL", district: "Beylikdüzü", score: 70, uni: 20, type: "Meslek Lisesi", category: "YEREL" }
+        ];
+
+        const topicsDb = {
+            'Matematik': [{name:'Çarpanlar Katlar',advice:'EBOB-EKOK problemleri çöz.'},{name:'Üslü İfadeler',advice:'Bilimsel gösterim çalış.'},{name:'Kareköklü İfadeler',advice:'Kök dışına çıkarma çalış.'},{name:'Veri Analizi',advice:'Grafik dönüşümleri yap.'},{name:'Olasılık',advice:'Tüm durumları hesapla.'},{name:'Cebirsel',advice:'Özdeşlikleri ezberle.'}],
+            'Türkçe': [{name:'Paragraf',advice:'Süre tutarak çöz.'},{name:'Sözel Mantık',advice:'Tablo kurmayı öğren.'},{name:'Fiilimsiler',advice:'Ekleri tekrar et.'},{name:'Cümle Ögeleri',advice:'Yüklem, özne, nesne sıralamasını unutma.'}],
+            'Fen Bilimleri': [{name:'Mevsimler',advice:'Eksen eğikliği çalış.'},{name:'DNA & Genetik',advice:'Çaprazlama yap.'},{name:'Basınç',advice:'Değişkenleri karşılaştır.'}],
+            'İnkılap': [{name:'Bir Kahraman Doğuyor',advice:'Mustafa Kemal\'in hayatı.'},{name:'Milli Uyanış',advice:'Kongreler dönemi.'}],
+            'Din': [{name:'Kader İnancı',advice:'Külli ve cüzi irade.'},{name:'Zekat ve Sadaka',advice:'Nisap miktarları.'}],
+            'İngilizce': [{name:'Friendship',advice:'Teklif kalıpları.'},{name:'Teen Life',advice:'Sıklık zarfları.'}]
+        };
+
+        // --- INIT ---
+        window.onload = function() {
+            startCountdown();
+            renderInputs();
+            renderTopics();
+            loadStudents();
+            liveCalcLGS();
+        };
+
+        // --- UI LOGIC ---
+        function toggleMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (sidebar.classList.contains('sidebar-open')) {
+                sidebar.classList.remove('sidebar-open');
+                overlay.classList.add('hidden');
+            } else {
+                sidebar.classList.add('sidebar-open');
+                overlay.classList.remove('hidden');
+            }
+        }
+
+        function showView(viewId) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`view-${viewId}`).classList.remove('hidden');
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active-nav', 'bg-indigo-600/10', 'text-indigo-400'));
+            
+            // Highlight logic
+            if(viewId === 'calc') { loadStudents(); } // Refresh lists if needed
+            toggleMenu(); // Close menu on mobile/click
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('btn-mode-detail').className = mode === 'detail' ? "px-3 py-1 text-[10px] font-bold bg-white shadow-sm rounded-md text-indigo-700 transition" : "px-3 py-1 text-[10px] font-bold text-slate-500 hover:text-slate-700 transition";
+            document.getElementById('btn-mode-quick').className = mode === 'quick' ? "px-3 py-1 text-[10px] font-bold bg-white shadow-sm rounded-md text-indigo-700 transition" : "px-3 py-1 text-[10px] font-bold text-slate-500 hover:text-slate-700 transition";
+            renderInputs();
+            liveCalcLGS();
+        }
+
+        function startCountdown() {
+            setInterval(() => {
+                const now = new Date().getTime();
+                const dist = targetDate - now;
+                const days = Math.floor(dist / (1000 * 60 * 60 * 24));
+                document.getElementById("countdown").innerText = `${days} Gün`;
+            }, 1000);
+        }
+
+        // --- RENDERERS ---
+        function renderInputs() {
+            const vCont = document.getElementById('inputs-verbal');
+            const nCont = document.getElementById('inputs-numerical');
+            vCont.innerHTML = ''; nCont.innerHTML = '';
+
+            lessons.forEach(l => {
+                let html = '';
+                if(currentMode === 'detail') {
+                    html = `<div class="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                        <div class="w-8 h-8 rounded-lg bg-${l.color}-100 text-${l.color}-600 flex items-center justify-center shrink-0"><i class="fas ${l.icon}"></i></div>
+                        <div class="flex-1 text-xs font-bold text-slate-700">${l.name}</div>
+                        <input type="number" id="d-${l.id}" min="0" max="${l.q}" placeholder="D" oninput="liveCalcLGS()" class="w-10 h-8 text-center text-xs font-bold bg-white border border-slate-300 rounded focus:border-green-500 outline-none text-green-600">
+                        <input type="number" id="y-${l.id}" min="0" max="${l.q}" placeholder="Y" oninput="liveCalcLGS()" class="w-10 h-8 text-center text-xs font-bold bg-white border border-slate-300 rounded focus:border-rose-500 outline-none text-rose-600">
+                    </div>`;
+                } else {
+                    html = `<div class="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                        <div class="w-8 h-8 rounded-lg bg-${l.color}-100 text-${l.color}-600 flex items-center justify-center shrink-0"><i class="fas ${l.icon}"></i></div>
+                        <div class="flex-1 text-xs font-bold text-slate-700">${l.name}</div>
+                        <input type="number" id="n-${l.id}" min="0" max="${l.q}" step="0.01" oninput="liveCalcLGS()" placeholder="Net" class="w-16 h-8 text-center text-xs font-bold bg-white border border-slate-300 rounded focus:border-indigo-500 outline-none text-indigo-600">
+                    </div>`;
+                }
+                if(l.type === 'verbal') vCont.innerHTML += html; else nCont.innerHTML += html;
+            });
+        }
+
+        function renderTopics() {
+            const container = document.getElementById('topics-list');
+            let html = '';
+            for (const [subj, list] of Object.entries(topicsDb)) {
+                html += `<div class="mb-4"><h4 class="text-[10px] font-bold text-slate-400 uppercase mb-2 sticky top-0 bg-white/95 py-1 z-10">${subj}</h4><div class="space-y-2">`;
+                list.forEach(t => {
+                    html += `
+                    <label class="group flex cursor-pointer">
+                        <input type="checkbox" class="peer hidden topic-check" value="${subj}|${t.name}">
+                        <div class="flex-1 p-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 bg-slate-50 transition-all peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-indigo-600 flex justify-between items-center hover:bg-white hover:shadow-sm">
+                            <span>${t.name}</span>
+                            <i class="fas fa-check opacity-0 peer-checked:opacity-100 transition-opacity"></i>
+                        </div>
+                    </label>`;
+                });
+                html += `</div></div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        // --- CALCULATION ---
+        function calcOBP() {
+            const g6 = parseFloat(document.getElementById('grade-6').value) || 0;
+            const g7 = parseFloat(document.getElementById('grade-7').value) || 0;
+            const g8 = parseFloat(document.getElementById('grade-8').value) || 0;
+            lastObpScore = (g6 > 0 && g7 > 0 && g8 > 0) ? (g6 + g7 + g8) / 3 : 0;
+            document.getElementById('live-obp').innerText = lastObpScore > 0 ? lastObpScore.toFixed(2) : "00.00";
+        }
+
+        function liveCalcLGS() {
+            let score = 0, totalNet = 0;
+            const base = 194.76;
+            lessons.forEach(l => {
+                let net = 0;
+                if(currentMode === 'detail') {
+                    let d = parseInt(document.getElementById(`d-${l.id}`).value) || 0;
+                    let y = parseInt(document.getElementById(`y-${l.id}`).value) || 0;
+                    if(d+y > l.q) { y = l.q - d; document.getElementById(`y-${l.id}`).value = y; }
+                    net = Math.max(0, d - (y/3));
+                } else {
+                    net = parseFloat(document.getElementById(`n-${l.id}`).value) || 0;
+                    if(net > l.q) net = l.q;
+                }
+                totalNet += net;
+                score += net * l.coeff;
+            });
+            lastLgsScore = base + score;
+            if(lastLgsScore > 500) lastLgsScore = 500;
+            if(lastLgsScore < 100) lastLgsScore = 100;
+            document.getElementById('live-score').innerText = lastLgsScore.toFixed(3);
+            document.getElementById('live-net').innerText = totalNet.toFixed(2);
+            return { score: lastLgsScore, net: totalNet };
+        }
+
+        // --- SAVE & ANALYSIS ---
+        function saveAndAnalyze() {
+            const sName = document.getElementById('student-name').value.trim();
+            const eName = document.getElementById('exam-name').value.trim() || new Date().toLocaleDateString('tr-TR');
+            if(!sName) { Swal.fire('Hata', 'Öğrenci adı giriniz!', 'error'); return; }
+
+            const { score, net } = liveCalcLGS();
+            calcOBP(); // Ensure OBP is fresh
+
+            // Gather Details
+            const netsMap = {};
+            let dTotal=0, yTotal=0;
+            lessons.forEach(l => {
+                let nVal = 0;
+                if(currentMode === 'detail') {
+                    let d = parseInt(document.getElementById(`d-${l.id}`).value)||0;
+                    let y = parseInt(document.getElementById(`y-${l.id}`).value)||0;
+                    dTotal += d; yTotal += y;
+                    nVal = Math.max(0, d - (y/3));
+                } else {
+                    nVal = parseFloat(document.getElementById(`n-${l.id}`).value)||0;
+                    dTotal = Math.floor(net); // Approx
+                }
+                netsMap[l.name] = nVal;
+            });
+            const topics = Array.from(document.querySelectorAll('.topic-check:checked')).map(cb => cb.value.split('|')[1]);
+
+            const entry = {
+                id: Date.now(),
+                date: new Date().toLocaleDateString('tr-TR'),
+                examName: eName,
+                score: score,
+                obp: lastObpScore,
+                totalNet: net,
+                d: dTotal, y: yTotal,
+                nets: netsMap,
+                topics: topics
+            };
+
+            // Save
+            let db = JSON.parse(localStorage.getItem(DB_KEY)) || {};
+            if(!db[sName]) db[sName] = [];
+            db[sName].push(entry);
+            localStorage.setItem(DB_KEY, JSON.stringify(db));
+
+            // Show Results
+            showModal(entry, db[sName]);
+        }
+
+        function showModal(current, history) {
+            document.getElementById('res-score').innerText = current.score.toFixed(0);
+            document.getElementById('res-d').innerText = current.d;
+            document.getElementById('res-y').innerText = current.y;
+            document.getElementById('res-n').innerText = current.totalNet.toFixed(2);
+
+            // Teacher Note
+            const note = document.getElementById('teacher-note');
+            if(current.score > 460) note.innerText = "Harika! Fen Lisesi potansiyeli çok yüksek.";
+            else if(current.score > 400) note.innerText = "Çok iyi! Nitelikli okullar cepte.";
+            else note.innerText = "Düzenli çalışmayla yükseleceksin.";
+
+            // Comparison
+            const compBox = document.getElementById('comparison-box');
+            if(history.length > 1) {
+                const prev = history[history.length - 2];
+                const diff = current.score - prev.score;
+                const icon = diff >= 0 ? '<i class="fas fa-arrow-up text-green-500"></i>' : '<i class="fas fa-arrow-down text-rose-500"></i>';
+                compBox.innerHTML = `Önceki denemeye göre değişim: <span class="font-bold">${icon} ${Math.abs(diff).toFixed(2)} Puan</span>`;
+            } else {
+                compBox.innerText = "İlk kayıt, kıyaslama yok.";
+            }
+
+            // Prescription
+            const pBox = document.getElementById('modal-prescription');
+            pBox.innerHTML = '';
+            if(current.topics.length > 0) {
+                current.topics.forEach(t => {
+                    // Simple search for advice
+                    let adv = "Tekrar et.";
+                    for(const k in topicsDb) { const f = topicsDb[k].find(x => x.name === t); if(f) adv = f.advice; }
+                    pBox.innerHTML += `<div class="bg-rose-50 p-2 rounded text-xs text-rose-800 font-bold border border-rose-100"><div>${t}</div><div class="text-[10px] font-normal text-rose-600 mt-1">${adv}</div></div>`;
+                });
+            } else {
+                pBox.innerHTML = `<div class="col-span-2 text-center text-slate-400 text-xs">Eksik konu yok.</div>`;
+            }
+
+            // Chart
+            if(modalChartInst) modalChartInst.destroy();
+            modalChartInst = new Chart(document.getElementById('modalChart'), {
+                type: 'doughnut',
+                data: { labels: ['D','Y','B'], datasets: [{ data: [current.d, current.y, 90-(current.d+current.y)], backgroundColor: ['#22c55e','#f43f5e','#e2e8f0'], borderWidth: 0 }] },
+                options: { responsive:true, maintainAspectRatio:false, cutout:'70%', plugins:{legend:{display:false}} }
+            });
+
+            // Schools & Show
+            renderSchools(current.score, current.obp, 'all');
+            document.getElementById('report-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('report-modal').classList.remove('opacity-0'), 10);
+        }
+
+        // --- SCHOOL FILTERING (FIXED) ---
+        function filterSchools(cat) {
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                b.classList.remove('active');
+                if(b.dataset.filter === cat) b.classList.add('active');
+            });
+            renderSchools(lastLgsScore, lastObpScore, cat);
+        }
+
+        function renderSchools(lgsScore, obpScore, filter) {
+            const grid = document.getElementById('schools-grid');
+            grid.innerHTML = '';
+            
+            // Sort: LGS first then OBP
+            schools.sort((a,b) => b.score - a.score);
+
+            let visibleCount = 0;
+
+            schools.forEach(s => {
+                let status = "", stClass = "", stColor = "";
+                let diff = 0;
+                let show = false;
+
+                if (s.category === "YEREL") {
+                    // OBP Logic
+                    if (filter === 'YEREL' && obpScore === 0) return; // Don't show if OBP not entered when specifically asked
+                    diff = obpScore - s.score;
+                    if (diff >= 0) { status="RAHAT"; stClass="bg-green-100 text-green-700"; stColor="bg-green-500"; }
+                    else if (diff >= -5) { status="HEDEF"; stClass="bg-blue-100 text-blue-700 animate-pulse"; stColor="bg-blue-500"; }
+                    else { status="ZOR"; stClass="bg-orange-100 text-orange-700"; stColor="bg-orange-500"; }
+                    
+                    if (filter === 'YEREL' || filter === 'all') show = true;
+
+                } else {
+                    // LGS Logic
+                    diff = lgsScore - s.score;
+                    if (diff >= 10) { status="RAHAT"; stClass="bg-green-100 text-green-700"; stColor="bg-green-500"; }
+                    else if (diff >= -15) { status="HEDEF"; stClass="bg-blue-100 text-blue-700 animate-pulse"; stColor="bg-blue-500"; }
+                    else if (diff >= -40) { status="ZOR"; stClass="bg-orange-100 text-orange-700"; stColor="bg-orange-500"; }
+                    else { status="UZAK"; stClass="bg-slate-100 text-slate-400"; stColor="bg-slate-400"; }
+
+                    if (filter === 'all' || filter === status) show = true;
+                }
+
+                if (show) {
+                    visibleCount++;
+                    const typeBadge = s.category === "YEREL" 
+                        ? `<span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[9px] font-bold border border-purple-200">OBP</span>` 
+                        : `<span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[9px] font-bold border border-indigo-200">LGS</span>`;
+                    
+                    const scoreLabel = s.category === "YEREL" ? "Taban OBP" : "Taban Puan";
+                    const opac = status === 'UZAK' ? 'opacity-50 grayscale' : 'opacity-100';
+
+                    grid.innerHTML += `
+                    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 relative overflow-hidden group hover:-translate-y-1 transition-all ${opac}">
+                        <div class="absolute top-0 left-0 w-1 h-full ${stColor}"></div>
+                        <div class="flex justify-between items-start mb-2 pl-3">
+                            <div class="flex gap-2">
+                                <span class="text-[9px] font-bold uppercase text-slate-400 bg-slate-50 px-2 py-0.5 rounded">${s.district}</span>
+                                ${typeBadge}
+                            </div>
+                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200"><i class="fas fa-graduation-cap text-yellow-500 mr-1"></i>%${s.uni}</span>
+                        </div>
+                        <div class="pl-3 mb-3">
+                            <h4 class="font-bold text-slate-800 text-sm leading-tight">${s.name}</h4>
+                            <div class="text-[10px] text-slate-500 mt-0.5">${s.type}</div>
+                        </div>
+                        <div class="pl-3 mt-auto pt-3 border-t border-slate-100 flex justify-between items-center">
+                            <div>
+                                <div class="text-[9px] uppercase font-bold text-slate-400">${scoreLabel}</div>
+                                <div class="text-lg font-black text-slate-700">${s.score}</div>
+                            </div>
+                            <span class="text-[10px] font-bold px-2 py-1 rounded-md ${stClass}">${status}</span>
+                        </div>
+                    </div>`;
+                }
+            });
+
+            if(visibleCount === 0) {
+                grid.innerHTML = `<div class="col-span-full py-8 text-center text-slate-400 text-sm">Bu filtrede okul bulunamadı.</div>`;
+            }
+        }
+
+        // --- BACKUP SYSTEM ---
+        function backupData() {
+            const data = localStorage.getItem(DB_KEY);
+            if(!data) { Swal.fire('Uyarı', 'Henüz kaydedilmiş veri yok.', 'info'); return; }
+            const blob = new Blob([data], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `baris_lgs_yedek_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+        }
+
+        function importData(input) {
+            const file = input.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    localStorage.setItem(DB_KEY, JSON.stringify(data));
+                    Swal.fire('Başarılı', 'Veriler başarıyla yüklendi!', 'success');
+                    loadStudents(); // Refresh lists
+                } catch(err) {
+                    Swal.fire('Hata', 'Geçersiz yedek dosyası.', 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- STUDENT TRACKING (Simplified for brevity but functional) ---
+        function loadStudents() {
+            const db = JSON.parse(localStorage.getItem(DB_KEY)) || {};
+            const grid = document.getElementById('student-grid');
+            grid.innerHTML = '';
+            
+            if(Object.keys(db).length === 0) {
+                document.getElementById('no-data-msg').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('no-data-msg').classList.add('hidden');
+
+            for(const [name, exams] of Object.entries(db)) {
+                const last = exams[exams.length-1];
+                grid.innerHTML += `
+                <div class="glass-panel p-5 rounded-2xl hover:shadow-md transition cursor-pointer" onclick="showDetail('${name}')">
+                    <div class="flex justify-between mb-3"><h3 class="font-bold text-lg">${name}</h3><span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-1 rounded-full font-bold">${exams.length} Deneme</span></div>
+                    <div class="text-xs text-slate-500 mb-2">Son: ${last.date}</div>
+                    <div class="flex justify-between border-t border-slate-100 pt-2 font-bold">
+                        <div>${last.score.toFixed(0)} Puan</div><div class="text-indigo-600">${last.totalNet.toFixed(2)} Net</div>
+                    </div>
+                </div>`;
+            }
+        }
+
+        function showDetail(name) {
+            const db = JSON.parse(localStorage.getItem(DB_KEY));
+            const exams = db[name];
+            
+            document.getElementById('detail-student-name').innerText = name + " - Gelişim";
+            document.getElementById('student-detail-area').classList.remove('hidden');
+            document.getElementById('student-detail-area').scrollIntoView({behavior:'smooth'});
+
+            // Chart
+            if(progressChartInst) progressChartInst.destroy();
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            progressChartInst = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: exams.map(e => e.examName || e.date),
+                    datasets: [{ label: 'Puan', data: exams.map(e=>e.score), borderColor: '#4f46e5', tension: 0.3 }]
+                },
+                options: { responsive:true, maintainAspectRatio:false }
+            });
+
+            // Table
+            const tbody = document.getElementById('history-table-body');
+            tbody.innerHTML = '';
+            [...exams].reverse().forEach(e => {
+                tbody.innerHTML += `<tr class="border-b border-slate-100"><td class="p-3">${e.date}</td><td class="p-3 font-bold">${e.score.toFixed(2)}</td><td class="p-3">${e.totalNet.toFixed(2)}</td><td class="p-3 text-xs text-slate-500">${e.topics.length} Konu Eksik</td></tr>`;
+            });
+        }
+
+        function closeStudentDetail() { document.getElementById('student-detail-area').classList.add('hidden'); }
+        function closeModal() { document.getElementById('report-modal').classList.add('opacity-0'); setTimeout(()=>document.getElementById('report-modal').classList.add('hidden'),300); }
+        function resetAll() { document.querySelectorAll('input').forEach(i => { if(i.id!=='student-name') i.value=''; if(i.type==='checkbox') i.checked=false; }); document.getElementById('live-score').innerText='194.760'; liveCalcLGS(); }
+        function filterStudents() { 
+            const term = document.getElementById('search-student').value.toLowerCase();
+            Array.from(document.getElementById('student-grid').children).forEach(c => {
+                c.style.display = c.querySelector('h3').innerText.toLowerCase().includes(term) ? 'block' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>
+
